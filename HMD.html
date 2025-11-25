@@ -17,10 +17,14 @@
     
     <div id="map"></div>
     <div id="tooltip"></div>
+    <div id="chart"></div>
     
     <script>
         const width = 960;
         const height = 500;
+        const chartWidth = 600;
+        const chartHeight = 300;
+        const chartMargin = {top: 20, right: 30, bottom: 30, left: 50};
 
         const hmdToCountry = {
             'AUS': 'Australia',
@@ -89,11 +93,88 @@
             .attr("width", width)
             .attr("height", height);
 
+        const chartSvg = d3.select("#chart")
+            .append("svg")
+            .attr("width", chartWidth)
+            .attr("height", chartHeight);
+
         const projection = d3.geoNaturalEarth1()
             .scale(170)
             .translate([width / 2, height / 2]);
+        
+        const chartG = chartSvg.append("g")
+            .attr("transform", "translate(" + chartMargin.left + "," + chartMargin.top + ")");
 
+        const xScale = d3.scaleLinear()
+            .range([0, chartWidth - chartMargin.left - chartMargin.right]);
+
+        const yScale = d3.scaleLinear()
+            .range([chartHeight - chartMargin.top - chartMargin.bottom, 0]);
+        
+        chartG.append("g")
+            .attr("class", "x-axis")
+            .attr("transform", "translate(0," + (chartHeight - chartMargin.top - chartMargin.bottom) + ")");
+
+        chartG.append("g")
+            .attr("class", "y-axis");
+
+        const line = d3.line()
+            .x(function(d) { return xScale(d.year); })
+            .y(function(d) { return yScale(d.value); });
+        
         const path = d3.geoPath().projection(projection);
+
+        let selectedCountries = [];
+
+        function updateChart() {
+            const years = Object.keys(mortalityData).map(d => +d).sort((a,b) => a-b);
+            xScale.domain([d3.min(years), d3.max(years)]);
+            let allValues = [];
+            selectedCountries.forEach(function(hmdCode) {
+                years.forEach(function(year) {
+                    if (mortalityData[year] && mortalityData[year][hmdCode]) {
+                        allValues.push(mortalityData[year][hmdCode]);
+                    }
+                });
+            });
+
+            if (allValues.length > 0) {
+                yScale.domain([d3.min(allValues) - 5, d3.max(allValues) + 5]);
+            } else {
+                yScale.domain([40, 95]);
+            }
+
+            chartG.select(".x-axis").call(d3.axisBottom(xScale).tickFormat(d3.format("d")));
+            chartG.select(".y-axis").call(d3.axisLeft(yScale));
+
+            const lineData = selectedCountries.map(function(hmdCode) {
+                const values = years.map(function(year) {
+                    return {
+                        year: year,
+                        value: mortalityData[year] ? mortalityData[year][hmdCode] : null
+                    };
+                }).filter(function(d) { return d.value !== null && d.value !== undefined; });
+                
+                return {code: hmdCode, values: values};
+            });
+
+            const lines = chartG.selectAll(".line")
+                .data(lineData, function(d) { return d.code; });
+
+            lines.enter()
+                .append("path")
+                .attr("class", "line")
+                .attr("fill", "none")
+                .attr("stroke-width", 2)
+                .merge(lines)
+                .attr("stroke", function(d) { 
+                    const latestYear = d.values[d.values.length - 1];
+                    return colorScale(latestYear ? latestYear.value : 70);
+                })
+                .attr("d", function(d) { return line(d.values); });
+
+            lines.exit().remove();
+        }
 
         d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
             .then(function(world) {
@@ -108,7 +189,8 @@
                 .attr("stroke", "#fff")
                 .on("mouseover", handleMouseOver)
                 .on("mousemove", handleMouseMove)
-                .on("mouseout", handleMouseOut);
+                .on("mouseout", handleMouseOut)
+                .on("click", handleClick)
                 
                 console.log("Map loaded!");
                 
@@ -161,7 +243,7 @@
                 
                 tooltip
                     .style("display", "block")
-                    .html("<strong>" + countryName + "</strong><br>Life Expectancy: " + value.toFixed(2) + " years<br>Year: " + currentYear);
+                    .html("<strong>" + countryName + "</strong><br>Life Expectancy: " + value.toFixed(2) + " years<br>Year: " + currentYear + "<br><em>Click to add to chart</em>");
                 
                 d3.select(this).attr("stroke", "#000").attr("stroke-width", 1);
             }
@@ -177,6 +259,28 @@
             tooltip.style("display", "none");
             d3.select(this).attr("stroke", "#fff").attr("stroke-width", 1);
         }
+
+        function handleClick(event, d) {
+            const countryName = d.properties.name;
+            const hmdCode = countryToHmd[countryName];
+            
+            if (hmdCode && mortalityData[currentYear] && mortalityData[currentYear][hmdCode]) {
+                const index = selectedCountries.indexOf(hmdCode);
+                if (index > -1) {
+                    selectedCountries.splice(index, 1); 
+                } else {
+                    selectedCountries.push(hmdCode); 
+                }
+                console.log("Selected:", selectedCountries);
+                updateChart();
+            }
+        }
+
+        d3.select("#year-slider").on("input", function() {
+            currentYear = +this.value;
+            d3.select("#year-display").text(currentYear);
+            updateMap();
+        });
     </script>
 </body>
 </html>
