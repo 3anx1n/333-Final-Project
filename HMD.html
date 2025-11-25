@@ -74,6 +74,16 @@
         let mortalityData = {};
         let currentYear = 2000;
 
+        const colorScale = d3.scaleSequential(d3.interpolateRdYlGn)
+            .domain([50, 90]);
+
+        const tooltip = d3.select("#tooltip")
+            .style("position", "absolute")
+            .style("background", "white")
+            .style("border", "1px solid #333")
+            .style("padding", "8px")
+            .style("display", "none");
+
         const svg = d3.select("#map")
             .append("svg")
             .attr("width", width)
@@ -89,13 +99,16 @@
             .then(function(world) {
                 const countries = topojson.feature(world, world.objects.countries);
                 
-                svg.selectAll("path")
-                    .data(countries.features)
-                    .enter()
-                    .append("path")
-                    .attr("d", path)
-                    .attr("fill", "#ccc")
-                    .attr("stroke", "#fff");
+            svg.selectAll("path")
+                .data(countries.features)
+                .enter()
+                .append("path")
+                .attr("d", path)
+                .attr("fill", "#ccc")
+                .attr("stroke", "#fff")
+                .on("mouseover", handleMouseOver)
+                .on("mousemove", handleMouseMove)
+                .on("mouseout", handleMouseOut);
                 
                 console.log("Map loaded!");
                 
@@ -122,7 +135,47 @@
                 
                 console.log("Data loaded!", mortalityData);
                 console.log("Sample year 2000:", mortalityData[2000]);
+                updateMap();
             });
+        }
+
+        function updateMap() {
+            svg.selectAll("path")
+                .attr("fill", function(d) {
+                    const countryName = d.properties.name;
+                    const hmdCode = countryToHmd[countryName];
+                    
+                    if (hmdCode && mortalityData[currentYear] && mortalityData[currentYear][hmdCode]) {
+                        return colorScale(mortalityData[currentYear][hmdCode]);
+                    }
+                    return "#ccc";
+                });
+        }
+
+        function handleMouseOver(event, d) {
+            const countryName = d.properties.name;
+            const hmdCode = countryToHmd[countryName];
+            
+            if (hmdCode && mortalityData[currentYear] && mortalityData[currentYear][hmdCode]) {
+                const value = mortalityData[currentYear][hmdCode];
+                
+                tooltip
+                    .style("display", "block")
+                    .html("<strong>" + countryName + "</strong><br>Life Expectancy: " + value.toFixed(2) + " years<br>Year: " + currentYear);
+                
+                d3.select(this).attr("stroke", "#000").attr("stroke-width", 1);
+            }
+        }
+
+        function handleMouseMove(event) {
+            tooltip
+                .style("left", (event.pageX + 10) + "px")
+                .style("top", (event.pageY - 28) + "px");
+        }
+
+        function handleMouseOut() {
+            tooltip.style("display", "none");
+            d3.select(this).attr("stroke", "#fff").attr("stroke-width", 1);
         }
     </script>
 </body>
