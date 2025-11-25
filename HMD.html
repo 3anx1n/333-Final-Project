@@ -7,7 +7,7 @@
     <script src="https://d3js.org/topojson.v3.min.js"></script>
 </head>
 <body>
-    <h1>Human Mortality Database </h1>
+    <h1>Human Mortality Database - Life Expectancy</h1>
     
     <div id="controls">
         <label>Year: </label>
@@ -22,6 +22,57 @@
         const width = 960;
         const height = 500;
 
+        const hmdToCountry = {
+            'AUS': 'Australia',
+            'AUT': 'Austria',
+            'BEL': 'Belgium',
+            'BGR': 'Bulgaria',
+            'BLR': 'Belarus',
+            'CAN': 'Canada',
+            'CHE': 'Switzerland',
+            'CHL': 'Chile',
+            'CZE': 'Czechia',
+            'DEUTNP': 'Germany',
+            'DNK': 'Denmark',
+            'ESP': 'Spain',
+            'EST': 'Estonia',
+            'FIN': 'Finland',
+            'FRATNP': 'France',
+            'GBR_NP': 'United Kingdom',
+            'GRC': 'Greece',
+            'HKG': 'Hong Kong',
+            'HRV': 'Croatia',
+            'HUN': 'Hungary',
+            'IRL': 'Ireland',
+            'ISL': 'Iceland',
+            'ISR': 'Israel',
+            'ITA': 'Italy',
+            'JPN': 'Japan',
+            'KOR': 'South Korea',
+            'LTU': 'Lithuania',
+            'LUX': 'Luxembourg',
+            'LVA': 'Latvia',
+            'NLD': 'Netherlands',
+            'NOR': 'Norway',
+            'NZL_NP': 'New Zealand',
+            'POL': 'Poland',
+            'PRT': 'Portugal',
+            'RUS': 'Russia',
+            'SVK': 'Slovakia',
+            'SVN': 'Slovenia',
+            'SWE': 'Sweden',
+            'TWN': 'Taiwan',
+            'UKR': 'Ukraine',
+            'USA': 'United States of America'
+        };
+
+        const countryToHmd = {};
+        for (const [hmd, country] of Object.entries(hmdToCountry)) {
+            countryToHmd[country] = hmd;
+        }
+
+        let mortalityData = {};
+        let currentYear = 2000;
 
         const svg = d3.select("#map")
             .append("svg")
@@ -33,7 +84,7 @@
             .translate([width / 2, height / 2]);
 
         const path = d3.geoPath().projection(projection);
-        
+
         d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
             .then(function(world) {
                 const countries = topojson.feature(world, world.objects.countries);
@@ -47,7 +98,32 @@
                     .attr("stroke", "#fff");
                 
                 console.log("Map loaded!");
+                
+                loadData();
             });
+
+        function loadData() {
+            d3.text("E0coh.txt").then(function(text) {
+                const lines = text.trim().split("\n");
+                
+                for (let i = 1; i < lines.length; i++) {
+                    const parts = lines[i].trim().split(/\s+/);
+                    const popName = parts[0];
+                    const year = +parts[1];
+                    const total = +parts[4];
+                    
+                    if (hmdToCountry[popName]) {
+                        if (!mortalityData[year]) {
+                            mortalityData[year] = {};
+                        }
+                        mortalityData[year][popName] = total;
+                    }
+                }
+                
+                console.log("Data loaded!", mortalityData);
+                console.log("Sample year 2000:", mortalityData[2000]);
+            });
+        }
     </script>
 </body>
 </html>
