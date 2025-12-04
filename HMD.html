@@ -13,6 +13,7 @@
         <option value="E0coh.txt">Life Expectancy</option>
         <option value="Deaths_1x1.txt">Deaths</option>
         <option value="Population.txt">Population</option>
+        <option value="DeathRate">Death Rate (per 1,000)</option>
     </select>
     
     <div id="controls">
@@ -90,23 +91,34 @@
                 label: "Life Expectancy",
                 unit: "years",
                 hasAge: false,
-                colorDomain: [50, 90]
+                colorDomain: [50, 90],
+                colorScheme: d3.interpolateRdYlGn
             },
             "Deaths_1x1.txt": {
                 label: "Deaths",
                 unit: "",
                 hasAge: true,
-                colorDomain: [0, 500000]
+                colorDomain: [0, 500000],
+                colorScheme: d3.interpolateOrRd
             },
             "Population.txt": {
                 label: "Population",
                 unit: "",
                 hasAge: true,
-                colorDomain: [0, 50000000]
+                colorDomain: [0, 50000000],
+                colorScheme: d3.interpolateBlues
+            },
+            "DeathRate": {
+                label: "Death Rate",
+                unit: "per 1,000",
+                hasAge: true,
+                colorDomain: [5, 25],
+                colorScheme: d3.interpolateOranges,
+                needsBoth: true
             }
         };
 
-        const colorScale = d3.scaleSequential(d3.interpolateRdYlGn)
+        let colorScale = d3.scaleSequential(d3.interpolateRdYlGn)
             .domain([50, 90]);
 
         const tooltip = d3.select("#tooltip")
@@ -234,24 +246,40 @@
                 return;
             }
             
-            d3.text(filename).then(function(text) {
-                mortalityData = {};
-                const lines = text.trim().split("\n");
-                
-                if (config.hasAge) {
-                    for (let i = 1; i < lines.length; i++) {
-                        const parts = lines[i].trim().split(/\s+/);
-                        const popName = parts[0];
-                        const year = +parts[1];
-                        const total = +parts[5];
-                        
-                        if (hmdToCountry[popName] && !isNaN(total)) {
-                            if (!mortalityData[year]) mortalityData[year] = {};
-                            if (!mortalityData[year][popName]) mortalityData[year][popName] = 0;
-                            mortalityData[year][popName] += total;
+            if (config.needsBoth) {
+                Promise.all([
+                    d3.text("Deaths_1x1.txt"),
+                    d3.text("Population.txt")
+                ]).then(function([deathsText, popText]) {
+                    const deathsData = parseAgeData(deathsText);
+                    const popData = parseAgeData(popText);
+                    
+                    mortalityData = {};
+                    for (const year in deathsData) {
+                        mortalityData[year] = {};
+                        for (const country in deathsData[year]) {
+                            if (popData[year] && popData[year][country] && popData[year][country] > 0) {
+                                mortalityData[year][country] = (deathsData[year][country] / popData[year][country]) * 1000;
+                            }
                         }
                     }
-                } else {
+                    
+                    colorScale = d3.scaleSequential(config.colorScheme).domain(config.colorDomain);
+                    updateMap();
+                    updateChart();
+                });
+            } else if (config.hasAge) {
+                d3.text(filename).then(function(text) {
+                    mortalityData = parseAgeData(text);
+                    colorScale = d3.scaleSequential(config.colorScheme).domain(config.colorDomain);
+                    updateMap();
+                    updateChart();
+                });
+            } else {
+                d3.text(filename).then(function(text) {
+                    mortalityData = {};
+                    const lines = text.trim().split("\n");
+                    
                     for (let i = 1; i < lines.length; i++) {
                         const parts = lines[i].trim().split(/\s+/);
                         const popName = parts[0];
@@ -263,11 +291,31 @@
                             mortalityData[year][popName] = total;
                         }
                     }
+                    
+                    colorScale = d3.scaleSequential(config.colorScheme).domain(config.colorDomain);
+                    updateMap();
+                    updateChart();
+                });
+            }
+        }
+
+        function parseAgeData(text) {
+            const data = {};
+            const lines = text.trim().split("\n");
+            
+            for (let i = 1; i < lines.length; i++) {
+                const parts = lines[i].trim().split(/\s+/);
+                const popName = parts[0];
+                const year = +parts[1];
+                const total = +parts[5];
+                
+                if (hmdToCountry[popName] && !isNaN(total)) {
+                    if (!data[year]) data[year] = {};
+                    if (!data[year][popName]) data[year][popName] = 0;
+                    data[year][popName] += total;
                 }
-                colorScale.domain(config.colorDomain);
-                updateMap();
-                updateChart();
-            });
+            }
+            return data;
         }
 
         function updateMap() {
@@ -286,15 +334,27 @@
         function handleMouseOver(event, d) {
             const countryName = d.properties.name;
             const hmdCode = countryToHmd[countryName];
+            const config = datasetConfig[currentDataset];
             
             if (hmdCode && mortalityData[currentYear] && mortalityData[currentYear][hmdCode]) {
                 const value = mortalityData[currentYear][hmdCode];
                 
+                let displayValue;
+                if (value >= 1000000) {
+                    displayValue = (value / 1000000).toFixed(2) + " million";
+                } else if (value >= 1000) {
+                    displayValue = (value / 1000).toFixed(1) + " thousand";
+                } else {
+                    displayValue = value.toFixed(2);
+                }
+                
                 tooltip
                     .style("display", "block")
-                    .html("<strong>" + countryName + "</strong><br>Life Expectancy: " + value.toFixed(2) + " years<br>Year: " + currentYear + "<br><em>Click to add to chart</em>");
+                    .html("<strong>" + countryName + "</strong><br>" + 
+                        config.label + ": " + displayValue + " " + config.unit + "<br>" +
+                        "Year: " + currentYear + "<br><em>Click to add to chart</em>");
                 
-                d3.select(this).attr("stroke", "#000").attr("stroke-width", 1);
+                d3.select(this).attr("stroke", "#000").attr("stroke-width", 2);
             }
         }
 
