@@ -29,9 +29,9 @@
     <script>
         const width = 960;
         const height = 500;
-        const chartWidth = 600;
+        const chartWidth = 800;
         const chartHeight = 300;
-        const chartMargin = {top: 20, right: 30, bottom: 30, left: 50};
+        const chartMargin = {top: 20, right: 100, bottom: 30, left: 60};
 
         const hmdToCountry = {
             'AUS': 'Australia',
@@ -159,6 +159,7 @@
             .attr("class", "y-axis");
 
         const line = d3.line()
+            .defined(function(d) { return d.value !== null && !isNaN(d.value) && isFinite(d.value); })
             .x(function(d) { return xScale(d.year); })
             .y(function(d) { return yScale(d.value); });
         
@@ -168,35 +169,68 @@
 
         function updateChart() {
             const years = Object.keys(mortalityData).map(d => +d).sort((a,b) => a-b);
-            xScale.domain([d3.min(years), d3.max(years)]);
+
+            let minYear = Infinity;
+            let maxYear = -Infinity;
             let allValues = [];
+            
             selectedCountries.forEach(function(hmdCode) {
+                let countryValues = [];
                 years.forEach(function(year) {
                     if (mortalityData[year] && mortalityData[year][hmdCode]) {
-                        allValues.push(mortalityData[year][hmdCode]);
+                        countryValues.push(mortalityData[year][hmdCode]);
+                        if (year < minYear) minYear = year;
+                        if (year > maxYear) maxYear = year;
                     }
                 });
+
+                if (countryValues.length > 0) {
+                    countryValues.sort((a, b) => a - b);
+                    const median = countryValues[Math.floor(countryValues.length / 2)];
+                    
+                    countryValues.forEach(function(v) {
+                        if (v < median * 3) {
+                            allValues.push(v);
+                        }
+                    });
+                }
             });
-
-            if (allValues.length > 0) {
-                yScale.domain([d3.min(allValues) - 5, d3.max(allValues) + 5]);
-            } else {
-                yScale.domain([40, 95]);
-            }
-
-            chartG.select(".x-axis").call(d3.axisBottom(xScale).tickFormat(d3.format("d")));
-            chartG.select(".y-axis").call(d3.axisLeft(yScale));
 
             const lineData = selectedCountries.map(function(hmdCode) {
-                const values = years.map(function(year) {
-                    return {
-                        year: year,
-                        value: mortalityData[year] ? mortalityData[year][hmdCode] : null
-                    };
-                }).filter(function(d) { return d.value !== null && d.value !== undefined; });
-                
+                const values = [];
+                years.forEach(function(year) {
+                    if (mortalityData[year] && mortalityData[year][hmdCode]) {
+                        const val = mortalityData[year][hmdCode];
+                        if (val !== null && val !== undefined && !isNaN(val) && isFinite(val) && val > 0) {
+                            values.push({year: year, value: val});
+                        }
+                    }
+                });
                 return {code: hmdCode, values: values};
             });
+            if (allValues.length > 0) {
+                xScale.domain([minYear, maxYear]);
+                
+                const sortedValues = allValues.slice().sort((a, b) => a - b);
+                const yMin = sortedValues[0];
+                const yMax = sortedValues[sortedValues.length - 1];
+
+                console.log("Y values range:", yMin, "-", yMax);
+                
+                const padding = (yMax - yMin) * 0.1;
+                yScale.domain([Math.max(0, yMin - padding), yMax + padding]);
+            } else {
+                xScale.domain([1960, 2020]);
+                yScale.domain([40, 95]);
+            }
+            const yAxisFormat = function(d) {
+                if (d >= 1000000) return (d / 1000000).toFixed(1) + "M";
+                if (d >= 1000) return (d / 1000).toFixed(0) + "K";
+                return d;
+            };
+
+            chartG.select(".x-axis").call(d3.axisBottom(xScale).tickFormat(d3.format("d")));
+            chartG.select(".y-axis").call(d3.axisLeft(yScale).tickFormat(yAxisFormat));
 
             const lines = chartG.selectAll(".line")
                 .data(lineData, function(d) { return d.code; });
@@ -211,9 +245,49 @@
                     const latestYear = d.values[d.values.length - 1];
                     return colorScale(latestYear ? latestYear.value : 70);
                 })
-                .attr("d", function(d) { return line(d.values); });
+                .attr("d", function(d) { 
+                    const xDomain = xScale.domain();
+                    const filteredValues = d.values.filter(function(v) {
+                        return v.year >= xDomain[0] && v.year <= xDomain[1] && 
+                            v.value !== null && !isNaN(v.value) && isFinite(v.value);
+                    });
+                    return filteredValues.length > 1 ? line(filteredValues) : null;
+                });
 
             lines.exit().remove();
+
+            chartG.selectAll(".line-label").remove();
+            const chartInnerWidth = chartWidth - chartMargin.left - chartMargin.right;
+
+            lineData.forEach(function(d) {
+                if (d.values.length > 0) {
+                    const xDomain = xScale.domain();
+                    let lastVisiblePoint = null;
+                    
+                    for (let i = d.values.length - 1; i >= 0; i--) {
+                        if (d.values[i].year >= xDomain[0] && d.values[i].year <= xDomain[1]) {
+                            lastVisiblePoint = d.values[i];
+                            break;
+                        }
+                    }
+                    
+                    if (lastVisiblePoint) {
+                        const labelValue = lastVisiblePoint.value;
+                        const labelYear = lastVisiblePoint.year;
+                        
+                        if (labelValue !== null && !isNaN(labelValue)) {
+                            chartG.append("text")
+                                .attr("class", "line-label")
+                                .attr("x", chartInnerWidth + 5)
+                                .attr("y", yScale(labelValue))
+                                .attr("fill", colorScale(labelValue))
+                                .attr("font-size", "11px")
+                                .attr("dominant-baseline", "middle")
+                                .text(hmdToCountry[d.code]);
+                        }
+                    }
+                }
+            });
         }
 
         d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
