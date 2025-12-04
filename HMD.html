@@ -8,6 +8,12 @@
 </head>
 <body>
     <h1>Human Mortality Database - Life Expectancy</h1>
+    <label>Dataset: </label>
+    <select id="dataset-select">
+        <option value="E0coh.txt">Life Expectancy</option>
+        <option value="Deaths_1x1.txt">Deaths</option>
+        <option value="Population.txt">Population</option>
+    </select>
     
     <div id="controls">
         <label>Year: </label>
@@ -77,6 +83,28 @@
 
         let mortalityData = {};
         let currentYear = 2000;
+        let currentDataset = "E0coh.txt";
+
+        const datasetConfig = {
+            "E0coh.txt": {
+                label: "Life Expectancy",
+                unit: "years",
+                hasAge: false,
+                colorDomain: [50, 90]
+            },
+            "Deaths_1x1.txt": {
+                label: "Deaths",
+                unit: "",
+                hasAge: true,
+                colorDomain: [0, 500000]
+            },
+            "Population.txt": {
+                label: "Population",
+                unit: "",
+                hasAge: true,
+                colorDomain: [0, 50000000]
+            }
+        };
 
         const colorScale = d3.scaleSequential(d3.interpolateRdYlGn)
             .domain([50, 90]);
@@ -194,30 +222,51 @@
                 
                 console.log("Map loaded!");
                 
-                loadData();
+                loadData(currentDataset);
             });
 
-        function loadData() {
-            d3.text("E0coh.txt").then(function(text) {
+        function loadData(filename) {
+            selectedCountries = [];
+            const config = datasetConfig[filename];
+            
+            if (!config) {
+                console.error("No config for:", filename);
+                return;
+            }
+            
+            d3.text(filename).then(function(text) {
+                mortalityData = {};
                 const lines = text.trim().split("\n");
                 
-                for (let i = 1; i < lines.length; i++) {
-                    const parts = lines[i].trim().split(/\s+/);
-                    const popName = parts[0];
-                    const year = +parts[1];
-                    const total = +parts[4];
-                    
-                    if (hmdToCountry[popName]) {
-                        if (!mortalityData[year]) {
-                            mortalityData[year] = {};
+                if (config.hasAge) {
+                    for (let i = 1; i < lines.length; i++) {
+                        const parts = lines[i].trim().split(/\s+/);
+                        const popName = parts[0];
+                        const year = +parts[1];
+                        const total = +parts[5];
+                        
+                        if (hmdToCountry[popName] && !isNaN(total)) {
+                            if (!mortalityData[year]) mortalityData[year] = {};
+                            if (!mortalityData[year][popName]) mortalityData[year][popName] = 0;
+                            mortalityData[year][popName] += total;
                         }
-                        mortalityData[year][popName] = total;
+                    }
+                } else {
+                    for (let i = 1; i < lines.length; i++) {
+                        const parts = lines[i].trim().split(/\s+/);
+                        const popName = parts[0];
+                        const year = +parts[1];
+                        const total = +parts[4];
+                        
+                        if (hmdToCountry[popName] && !isNaN(total)) {
+                            if (!mortalityData[year]) mortalityData[year] = {};
+                            mortalityData[year][popName] = total;
+                        }
                     }
                 }
-                
-                console.log("Data loaded!", mortalityData);
-                console.log("Sample year 2000:", mortalityData[2000]);
+                colorScale.domain(config.colorDomain);
                 updateMap();
+                updateChart();
             });
         }
 
@@ -280,6 +329,11 @@
             currentYear = +this.value;
             d3.select("#year-display").text(currentYear);
             updateMap();
+        });
+
+        d3.select("#dataset-select").on("change", function() {
+            currentDataset = this.value;
+            loadData(currentDataset);
         });
     </script>
 </body>
