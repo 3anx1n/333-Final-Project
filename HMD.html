@@ -7,13 +7,20 @@
     <script src="https://d3js.org/topojson.v3.min.js"></script>
 </head>
 <body>
-    <h1>Human Mortality Database - Life Expectancy</h1>
+    <h1>Human Mortality Database</h1>
     <label>Dataset: </label>
     <select id="dataset-select">
         <option value="E0coh.txt">Life Expectancy</option>
         <option value="Deaths_1x1.txt">Deaths</option>
         <option value="Population.txt">Population</option>
         <option value="DeathRate">Death Rate (per 1,000)</option>
+    </select>
+
+    <label style="margin-left: 20px;">Gender: </label>
+    <select id="gender-select">
+        <option value="Total">Total</option>
+        <option value="Female">Female</option>
+        <option value="Male">Male</option>
     </select>
     
     <div id="controls">
@@ -85,6 +92,7 @@
         let mortalityData = {};
         let currentYear = 2000;
         let currentDataset = "E0coh.txt";
+        let currentGender = "Total";
 
         const datasetConfig = {
             "E0coh.txt": {
@@ -325,15 +333,17 @@
                     d3.text("Deaths_1x1.txt"),
                     d3.text("Population.txt")
                 ]).then(function([deathsText, popText]) {
-                    const deathsData = parseAgeData(deathsText);
-                    const popData = parseAgeData(popText);
+                    const deathsRaw = parseAgeData(deathsText);
+                    const popRaw = parseAgeData(popText);
                     
                     mortalityData = {};
-                    for (const year in deathsData) {
+                    for (const year in deathsRaw) {
                         mortalityData[year] = {};
-                        for (const country in deathsData[year]) {
-                            if (popData[year] && popData[year][country] && popData[year][country] > 0) {
-                                mortalityData[year][country] = (deathsData[year][country] / popData[year][country]) * 1000;
+                        for (const country in deathsRaw[year]) {
+                            const deaths = deathsRaw[year][country][currentGender];
+                            const pop = popRaw[year] && popRaw[year][country] ? popRaw[year][country][currentGender] : 0;
+                            if (pop > 0) {
+                                mortalityData[year][country] = (deaths / pop) * 1000;
                             }
                         }
                     }
@@ -343,12 +353,19 @@
                     updateChart();
                 });
             } else if (config.hasAge) {
-                d3.text(filename).then(function(text) {
-                    mortalityData = parseAgeData(text);
-                    colorScale = d3.scaleSequential(config.colorScheme).domain(config.colorDomain);
-                    updateMap();
-                    updateChart();
-                });
+                    d3.text(filename).then(function(text) {
+                        const rawData = parseAgeData(text);
+                        mortalityData = {};
+                        for (const year in rawData) {
+                            mortalityData[year] = {};
+                            for (const country in rawData[year]) {
+                                mortalityData[year][country] = rawData[year][country][currentGender];
+                            }
+                        }
+                        colorScale = d3.scaleSequential(config.colorScheme).domain(config.colorDomain);
+                        updateMap();
+                        updateChart();
+                    });
             } else {
                 d3.text(filename).then(function(text) {
                     mortalityData = {};
@@ -357,12 +374,20 @@
                     for (let i = 1; i < lines.length; i++) {
                         const parts = lines[i].trim().split(/\s+/);
                         const popName = parts[0];
-                        const year = +parts[1];
+                        const year = +parts[1].replace(/[+-]/g, '');
+                        const female = +parts[2];
+                        const male = +parts[3];
                         const total = +parts[4];
                         
-                        if (hmdToCountry[popName] && !isNaN(total)) {
+                        if (hmdToCountry[popName] && !isNaN(year)) {
                             if (!mortalityData[year]) mortalityData[year] = {};
-                            mortalityData[year][popName] = total;
+                            if (currentGender === "Female") {
+                                mortalityData[year][popName] = female;
+                            } else if (currentGender === "Male") {
+                                mortalityData[year][popName] = male;
+                            } else {
+                                mortalityData[year][popName] = total;
+                            }
                         }
                     }
                     
@@ -373,6 +398,8 @@
             }
         }
 
+        
+
         function parseAgeData(text) {
             const data = {};
             const lines = text.trim().split("\n");
@@ -380,13 +407,21 @@
             for (let i = 1; i < lines.length; i++) {
                 const parts = lines[i].trim().split(/\s+/);
                 const popName = parts[0];
-                const year = +parts[1];
+                const yearStr = parts[1];               
+                if (yearStr.includes('+')) continue;
+                const year = +yearStr.replace('-', '');
+                const female = +parts[3];
+                const male = +parts[4];
                 const total = +parts[5];
                 
-                if (hmdToCountry[popName] && !isNaN(total)) {
+                if (hmdToCountry[popName] && !isNaN(year)) {
                     if (!data[year]) data[year] = {};
-                    if (!data[year][popName]) data[year][popName] = 0;
-                    data[year][popName] += total;
+                    if (!data[year][popName]) {
+                        data[year][popName] = {Female: 0, Male: 0, Total: 0};
+                    }
+                    if (!isNaN(female)) data[year][popName].Female += female;
+                    if (!isNaN(male)) data[year][popName].Male += male;
+                    if (!isNaN(total)) data[year][popName].Total += total;
                 }
             }
             return data;
@@ -467,6 +502,11 @@
 
         d3.select("#dataset-select").on("change", function() {
             currentDataset = this.value;
+            loadData(currentDataset);
+        });
+
+        d3.select("#gender-select").on("change", function() {
+            currentGender = this.value;
             loadData(currentDataset);
         });
     </script>
