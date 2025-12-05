@@ -22,7 +22,16 @@
         <option value="Female">Female</option>
         <option value="Male">Male</option>
     </select>
-    
+
+    <label style="margin-left: 20px;">Age: </label>
+    <input type="range" id="age-slider" min="0" max="100" value="0" disabled>
+    <span id="age-display">All Ages</span>
+    <label style="margin-left: 10px;">
+        <input type="checkbox" id="age-toggle"> Filter by age
+    </label>
+
+    <button id="reset-btn" style="margin-left: 20px;">Reset Selection</button>
+
     <div id="controls">
         <label>Year: </label>
         <input type="range" id="year-slider" min="1960" max="2020" value="2000">
@@ -93,6 +102,8 @@
         let currentYear = 2000;
         let currentDataset = "E0coh.txt";
         let currentGender = "Total";
+        let currentAge = "all";
+        let ageFilterEnabled = false;
 
         const datasetConfig = {
             "E0coh.txt": {
@@ -264,6 +275,53 @@
 
             lines.exit().remove();
 
+            chartG.selectAll(".line-dot").remove();
+            lineData.forEach(function(d) {
+                const xDomain = xScale.domain();
+                const filteredValues = d.values.filter(function(v) {
+                    return v.year >= xDomain[0] && v.year <= xDomain[1];
+                });
+                
+                chartG.selectAll(".line-dot-" + d.code)
+                    .data(filteredValues)
+                    .enter()
+                    .append("circle")
+                    .attr("class", "line-dot")
+                    .attr("cx", function(v) { return xScale(v.year); })
+                    .attr("cy", function(v) { return yScale(v.value); })
+                    .attr("r", 4)
+                    .attr("fill", colorScale(filteredValues[filteredValues.length - 1]?.value || 0))
+                    .attr("opacity", 0)
+                    .on("mouseover", function(event, v) {
+                        d3.select(this).attr("opacity", 1).attr("r", 6);
+                        
+                        const config = datasetConfig[currentDataset];
+                        let displayValue;
+                        if (v.value >= 1000000) {
+                            displayValue = (v.value / 1000000).toFixed(2) + " million";
+                        } else if (v.value >= 1000) {
+                            displayValue = (v.value / 1000).toFixed(1) + " thousand";
+                        } else {
+                            displayValue = v.value.toFixed(2);
+                        }
+                        
+                        tooltip
+                            .style("display", "block")
+                            .html("<strong>" + hmdToCountry[d.code] + "</strong><br>" +
+                                  config.label + ": " + displayValue + " " + config.unit + "<br>" +
+                                  "Year: " + v.year);
+                    })
+                    .on("mousemove", function(event) {
+                        tooltip
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                    })
+                    .on("mouseout", function() {
+                        d3.select(this).attr("opacity", 0).attr("r", 4);
+                        tooltip.style("display", "none");
+                    });
+            });
+
             chartG.selectAll(".line-label").remove();
             const chartInnerWidth = chartWidth - chartMargin.left - chartMargin.right;
 
@@ -396,6 +454,28 @@
                     updateChart();
                 });
             }
+
+            const ageSlider = document.getElementById("age-slider");
+            const ageToggle = document.getElementById("age-toggle");
+            const ageDisplay = document.getElementById("age-display");
+
+            if (filename === "E0coh.txt") {
+                ageSlider.disabled = true;
+                ageToggle.disabled = true;
+                ageToggle.checked = false;
+                ageFilterEnabled = false;
+                currentAge = "all";
+                ageDisplay.textContent = "All Ages";
+            } else {
+                ageToggle.disabled = false;
+                if (ageFilterEnabled) {
+                    ageSlider.disabled = false;
+                    ageDisplay.textContent = "Age " + currentAge;
+                } else {
+                    ageSlider.disabled = true;
+                    ageDisplay.textContent = "All Ages";
+                }
+            }
         }
 
         
@@ -408,8 +488,16 @@
                 const parts = lines[i].trim().split(/\s+/);
                 const popName = parts[0];
                 const yearStr = parts[1];               
-                if (yearStr.includes('+')) continue;
+                if (yearStr.includes('+')) continue;                
                 const year = +yearStr.replace('-', '');
+                const ageStr = parts[2];
+                const age = ageStr === "110+" ? 110 : +ageStr;
+                
+                if (ageFilterEnabled && currentAge !== "all") {
+                    const targetAge = +currentAge;
+                    if (age !== targetAge) continue;
+                }
+                
                 const female = +parts[3];
                 const male = +parts[4];
                 const total = +parts[5];
@@ -508,6 +596,34 @@
         d3.select("#gender-select").on("change", function() {
             currentGender = this.value;
             loadData(currentDataset);
+        });
+
+        d3.select("#age-toggle").on("change", function() {
+            ageFilterEnabled = this.checked;
+            const ageSlider = document.getElementById("age-slider");
+            const ageDisplay = document.getElementById("age-display");
+            
+            if (ageFilterEnabled && currentDataset !== "E0coh.txt") {
+                ageSlider.disabled = false;
+                currentAge = ageSlider.value;
+                ageDisplay.textContent = "Age " + currentAge;
+            } else {
+                ageSlider.disabled = true;
+                currentAge = "all";
+                ageDisplay.textContent = "All Ages";
+            }
+            loadData(currentDataset);
+        });
+
+        d3.select("#age-slider").on("input", function() {
+            currentAge = this.value;
+            d3.select("#age-display").text("Age " + currentAge);
+            loadData(currentDataset);
+        });
+
+        d3.select("#reset-btn").on("click", function() {
+            selectedCountries = [];
+            updateChart();
         });
     </script>
 </body>
