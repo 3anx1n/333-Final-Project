@@ -3,67 +3,187 @@
 <head>
     <meta charset="UTF-8">
     <title>Human Mortality Visualization</title>
+<style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 15px;
+            max-width: 100%;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+            margin-top: 0;
+            font-size: 24px;
+        }
+        h3 {
+            color: #555;
+            font-size: 14px;
+            margin: 0 0 5px 0;
+        }
+        #line-title {
+            margin-bottom: 30px;
+        }
+        button {
+            padding: 3px 8px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            background: #fff;
+            font-size: 12px;
+        }
+        button:hover {
+            background: #f0f0f0;
+        }
+        select {
+            padding: 3px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        label {
+            font-size: 13px;
+        }
+        #controls-panel {
+            margin-bottom: 10px;
+            padding: 8px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        #year-controls {
+            margin-bottom: 10px;
+            padding: 8px;
+            background: #e8f4f8;
+            border-radius: 5px;
+        }
+        #main-container {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+        #left-panel {
+            width: 900px;
+            flex-shrink: 0;
+        }
+        #middle-panel {
+            width: 250px;
+            flex-shrink: 0;
+        }
+        #right-panel {
+            width: 900px;
+            flex-shrink: 0;
+        }
+        #map {
+            background: #f0f8ff;
+            border: 1px solid #ccc;
+            width: 100%;
+        }
+        #bar-chart {
+            margin-top: 8px;
+            max-height: 650px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+        }
+        #line-panel {
+            margin-top: 15px;
+        }
+        #chart {
+            background: #fafafa;
+            border: 1px solid #ccc;
+        }
+        #zoom-controls {
+            margin-bottom: 5px;
+        }
+        #zoom-controls button {
+            padding: 2px 8px;
+        }
+        #legend {
+            margin-top: 5px;
+        }
+        .axis text {
+            font-size: 10px;
+        }
+        .axis-label {
+            font-size: 11px;
+            font-weight: bold;
+        }
+    </style>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://d3js.org/topojson.v3.min.js"></script>
 </head>
 <body>
-    <h1>Human Mortality Database</h1>
-    <label>Dataset: </label>
-    <select id="dataset-select">
-        <option value="E0coh.txt">Life Expectancy</option>
-        <option value="Deaths_1x1.txt">Deaths</option>
-        <option value="Population.txt">Population</option>
-        <option value="DeathRate">Death Rate (per 1,000)</option>
-    </select>
+    <h1>Human Mortality Database Visualization</h1>
+    
+    <div id="controls-panel" style="margin-bottom: 15px; padding: 10px; background: #f5f5f5; border-radius: 5px;">
+        <label><strong>Dataset:</strong></label>
+        <select id="dataset-select">
+            <option value="E0coh.txt">Life Expectancy</option>
+            <option value="Deaths_1x1.txt">Deaths</option>
+            <option value="Population.txt">Population</option>
+            <option value="DeathRate">Death Rate (per 1,000)</option>
+        </select>
 
-    <label style="margin-left: 20px;">Gender: </label>
-    <select id="gender-select">
-        <option value="Total">Total</option>
-        <option value="Female">Female</option>
-        <option value="Male">Male</option>
-    </select>
+        <label style="margin-left: 20px;"><strong>Gender:</strong></label>
+        <select id="gender-select">
+            <option value="Total">Total</option>
+            <option value="Female">Female</option>
+            <option value="Male">Male</option>
+        </select>
 
-    <label style="margin-left: 20px;">Age: </label>
-    <input type="range" id="age-slider" min="0" max="100" value="0" disabled>
-    <span id="age-display">All Ages</span>
-    <label style="margin-left: 10px;">
-        <input type="checkbox" id="age-toggle"> Filter by age
-    </label>
+        <label style="margin-left: 20px;"><strong>Age:</strong></label>
+        <input type="range" id="age-slider" min="0" max="100" value="0" disabled>
+        <span id="age-display">All Ages</span>
+        <label style="margin-left: 10px;">
+            <input type="checkbox" id="age-toggle"> Filter by age
+        </label>
+    </div>
 
-    <button id="reset-btn" style="margin-left: 20px;">Reset Selection</button>
-    <button id="play-btn" style="margin-left: 10px;">▶ Play</button>
-
-    <div id="controls">
-        <label>Year: </label>
-        <input type="range" id="year-slider" min="1960" max="2020" value="2000">
-        <span id="year-display">2000</span>
+    <div id="year-controls" style="margin-bottom: 15px; padding: 10px; background: #e8f4f8; border-radius: 5px;">
+        <label><strong>Year:</strong></label>
+        <input type="range" id="year-slider" min="1960" max="2020" value="2000" style="width: 300px;">
+        <span id="year-display" style="font-size: 18px; font-weight: bold; margin-left: 10px;">2000</span>
+        <button id="play-btn" style="margin-left: 20px;">▶ Play</button>
+        <button id="reset-btn" style="margin-left: 10px;">Reset Selection</button>
     </div>
     
-    <div id="main-container" style="display: flex; gap: 20px;">
-        <div id="left-panel">
-            <div id="map"></div>
-            <div id="legend"></div>
+    <div id="main-container" style="display: flex; gap: 15px; align-items: flex-start;">
+            <div id="left-panel">
+                <h3 id="map-title">World Map - Life Expectancy (2000)</h3>
+                <div id="zoom-controls">
+                    <button id="zoom-in">+</button>
+                    <button id="zoom-out">−</button>
+                    <button id="zoom-reset">Reset Zoom</button>
+                </div>
+                <div id="map"></div>
+                <div id="legend"></div>
+            </div>
+            <div id="middle-panel">
+                <h3 id="bar-title">Country Rankings</h3>
+                <label>Show: </label>
+                <select id="bar-filter">
+                    <option value="top10">Top 10</option>
+                    <option value="bottom10">Bottom 10</option>
+                    <option value="all">All Countries</option>
+                    <option value="selected">Selected Only</option>
+                </select>
+                <div id="bar-chart"></div>
+            </div>
+            <div id="right-panel">
+                <h3 id="line-title">Trend Comparison</h3>
+                <div id="chart"></div>
+            </div>
         </div>
-        <div id="right-panel">
-            <label>Show: </label>
-            <select id="bar-filter">
-                <option value="top10">Top 10</option>
-                <option value="bottom10">Bottom 10</option>
-                <option value="all">All Countries</option>
-                <option value="selected">Selected Only</option>
-            </select>
-            <div id="bar-chart"></div>
-        </div>
+        <div id="tooltip"></div>
+        <div id="chart" style="border: 1px solid #ccc;"></div>
     </div>
-    <div id="tooltip"></div>
-    <div id="chart"></div>
-    
     <script>
-        const width = 960;
-        const height = 500;
-        const chartWidth = 800;
-        const chartHeight = 300;
-        const chartMargin = {top: 20, right: 100, bottom: 30, left: 60};
+        const width = 900;
+        const height = 650;
+        const chartWidth = 900;
+        const chartHeight = 650;
+        const chartMargin = {top: 20, right: 150, bottom: 50, left: 70};
 
         const hmdToCountry = {
             'AUS': 'Australia',
@@ -177,18 +297,14 @@
 
         svg.call(zoom);
 
-        d3.select("#left-panel").insert("div", "#map")
-            .attr("id", "zoom-controls")
-            .html('<button id="zoom-in">+</button> <button id="zoom-out">−</button> <button id="zoom-reset">Reset</button>');
-
         const chartSvg = d3.select("#chart")
             .append("svg")
             .attr("width", chartWidth)
             .attr("height", chartHeight);
 
-        const barWidth = 250;
-        const barHeight = 400;
-        const barMargin = {top: 10, right: 20, bottom: 30, left: 100};
+        const barWidth = 180;
+        const barHeight = 600;
+        const barMargin = {top: 10, right: 35, bottom: 20, left: 120};
 
         const barSvg = d3.select("#bar-chart")
             .append("svg")
@@ -301,6 +417,34 @@
 
             chartG.select(".x-axis").call(d3.axisBottom(xScale).tickFormat(d3.format("d")));
             chartG.select(".y-axis").call(d3.axisLeft(yScale).tickFormat(yAxisFormat));
+
+            chartG.selectAll(".x-axis-label").remove();
+            chartG.selectAll(".y-axis-label").remove();
+            
+            chartG.append("text")
+                .attr("class", "x-axis-label")
+                .attr("x", (chartWidth - chartMargin.left - chartMargin.right) / 2)
+                .attr("y", chartHeight - chartMargin.top)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "12px")
+                .attr("font-weight", "bold")
+                .text("Year");
+
+            const config = datasetConfig[currentDataset];
+            let yLabel = config.label;
+            if (config.unit) {
+                yLabel += " (" + config.unit + ")";
+            }
+            
+            chartG.append("text")
+                .attr("class", "y-axis-label")
+                .attr("transform", "rotate(-90)")
+                .attr("x", -(chartHeight - chartMargin.top - chartMargin.bottom) / 2)
+                .attr("y", -50)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "12px")
+                .attr("font-weight", "bold")
+                .text(yLabel);
 
             const lines = chartG.selectAll(".line")
                 .data(lineData, function(d) { return d.code; });
@@ -471,6 +615,7 @@
                     updateChart();
                     updateLegend();
                     updateBarChart();
+                    updateTitles();
                 });
             } else if (config.hasAge) {
                     d3.text(filename).then(function(text) {
@@ -487,6 +632,7 @@
                         updateChart();
                         updateLegend();
                         updateBarChart();
+                        updateTitles();
                     });
             } else {
                 d3.text(filename).then(function(text) {
@@ -518,6 +664,7 @@
                     updateChart();
                     updateLegend();
                     updateBarChart();
+                    updateTitles();
                 });
             }
 
@@ -597,13 +744,13 @@
             const config = datasetConfig[currentDataset];
             d3.select("#legend").html("");
             
-            const legendWidth = 300;
-            const legendHeight = 15;
+            const legendWidth = 200;
+            const legendHeight = 20;
             
             const legendSvg = d3.select("#legend")
                 .append("svg")
-                .attr("width", legendWidth + 80)
-                .attr("height", legendHeight + 30);
+                .attr("width", legendWidth + 50)
+                .attr("height", legendHeight + 45);
             
             const defs = legendSvg.append("defs");
             const gradient = defs.append("linearGradient")
@@ -616,10 +763,17 @@
                     .attr("offset", (t * 100) + "%")
                     .attr("stop-color", colorScale(value));
             }
-            
+
+            legendSvg.append("text")
+                .attr("x", 40)
+                .attr("y", -5)
+                .attr("font-size", "12px")
+                .attr("font-weight", "bold")
+                .text(config.label + (config.unit ? " (" + config.unit + ")" : ""));      
+
             legendSvg.append("rect")
                 .attr("x", 40)
-                .attr("y", 5)
+                .attr("y", 15)
                 .attr("width", legendWidth)
                 .attr("height", legendHeight)
                 .style("fill", "url(#legend-gradient)");
@@ -637,7 +791,7 @@
                 });
             
             legendSvg.append("g")
-                .attr("transform", "translate(40, " + (5 + legendHeight) + ")")
+                .attr("transform", "translate(40, " + (15 + legendHeight) + ")")
                 .call(legendAxis);
         }
 
@@ -734,7 +888,7 @@
                 .attr("y", d => barYScale(d.name) + barYScale.bandwidth() / 2)
                 .attr("text-anchor", "end")
                 .attr("dominant-baseline", "middle")
-                .attr("font-size", "11px")
+                .attr("font-size", "10px")
                 .attr("fill", d => selectedCountries.includes(d.code) ? "#000" : "#666")
                 .attr("font-weight", d => selectedCountries.includes(d.code) ? "bold" : "normal")
                 .text(d => d.name);
@@ -822,6 +976,19 @@
                         "Year: " + currentYear + "<br><em>Click to add to chart</em>");
             }
         }
+        function updateTitles() {
+            const config = datasetConfig[currentDataset];
+            const genderText = currentGender !== "Total" ? " (" + currentGender + ")" : "";
+            const ageText = ageFilterEnabled ? " - Age " + currentAge : "";
+                    
+            d3.select("#map-title").text("World Map - " + config.label + genderText + ageText + " (" + currentYear + ")");
+            d3.select("#bar-title").text("Country Rankings - " + config.label + genderText + ageText);
+                    
+            const selectedText = selectedCountries.length > 0 
+                ? selectedCountries.map(c => hmdToCountry[c]).join(", ")
+                : "Click countries on map or bar chart to compare";
+            d3.select("#line-title").text("Trend Comparison - " + selectedText);
+        }
         function handleClick(event, d) {
             const countryName = d.properties.name;
             const hmdCode = countryToHmd[countryName];
@@ -836,6 +1003,7 @@
                 console.log("Selected:", selectedCountries);
                 updateChart();
                 updateBarChart();
+                updateTitles();
             }
         }
 
@@ -844,6 +1012,7 @@
             d3.select("#year-display").text(currentYear);
             updateMap();
             updateBarChart();
+            updateTitles();
         });
 
         d3.select("#dataset-select").on("change", function() {
@@ -882,6 +1051,7 @@
         d3.select("#reset-btn").on("click", function() {
             selectedCountries = [];
             updateChart();
+            updateTitles();
         });
 
         d3.select("#play-btn").on("click", function() {
@@ -903,6 +1073,7 @@
                     d3.select("#year-display").text(currentYear);
                     updateMap();
                     updateBarChart();
+                    updateTitles();
                 }
                 
                 playInterval = setInterval(function() {
@@ -919,6 +1090,7 @@
                     updateMap();
                     updateTooltip();
                     updateBarChart();
+                    updateTitles();
                 }, 200);
             }
         });
