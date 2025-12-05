@@ -31,6 +31,7 @@
     </label>
 
     <button id="reset-btn" style="margin-left: 20px;">Reset Selection</button>
+    <button id="play-btn" style="margin-left: 10px;">▶ Play</button>
 
     <div id="controls">
         <label>Year: </label>
@@ -186,7 +187,9 @@
         const path = d3.geoPath().projection(projection);
 
         let selectedCountries = [];
-
+        let isPlaying = false;
+        let playInterval = null;
+        let hoveredCountry = null;       
         function updateChart() {
             const years = Object.keys(mortalityData).map(d => +d).sort((a,b) => a-b);
 
@@ -255,6 +258,8 @@
             const lines = chartG.selectAll(".line")
                 .data(lineData, function(d) { return d.code; });
 
+            const lineColors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#a65628", "#f781bf", "#999999"];
+
             lines.enter()
                 .append("path")
                 .attr("class", "line")
@@ -262,8 +267,8 @@
                 .attr("stroke-width", 2)
                 .merge(lines)
                 .attr("stroke", function(d) { 
-                    const latestYear = d.values[d.values.length - 1];
-                    return colorScale(latestYear ? latestYear.value : 70);
+                    const colorIndex = selectedCountries.indexOf(d.code);
+                    return lineColors[colorIndex % lineColors.length];
                 })
                 .attr("d", function(d) { 
                     const xDomain = xScale.domain();
@@ -291,7 +296,11 @@
                     .attr("cx", function(v) { return xScale(v.year); })
                     .attr("cy", function(v) { return yScale(v.value); })
                     .attr("r", 4)
-                    .attr("fill", colorScale(filteredValues[filteredValues.length - 1]?.value || 0))
+                    .attr("fill", function() {
+                        const lineColors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#a65628", "#f781bf", "#999999"];
+                        const colorIndex = selectedCountries.indexOf(d.code);
+                        return lineColors[colorIndex % lineColors.length];
+                    })
                     .attr("opacity", 0)
                     .on("mouseover", function(event, v) {
                         d3.select(this).attr("opacity", 1).attr("r", 6);
@@ -343,11 +352,14 @@
                         const labelYear = lastVisiblePoint.year;
                         
                         if (labelValue !== null && !isNaN(labelValue)) {
+                            const lineColors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#a65628", "#f781bf", "#999999"];
+                            const colorIndex = selectedCountries.indexOf(d.code);
+
                             chartG.append("text")
                                 .attr("class", "line-label")
                                 .attr("x", chartInnerWidth + 5)
                                 .attr("y", yScale(labelValue))
-                                .attr("fill", colorScale(labelValue))
+                                .attr("fill", lineColors[colorIndex % lineColors.length])
                                 .attr("font-size", "11px")
                                 .attr("dominant-baseline", "middle")
                                 .text(hmdToCountry[d.code]);
@@ -584,6 +596,8 @@
             const hmdCode = countryToHmd[countryName];
             const config = datasetConfig[currentDataset];
             
+            hoveredCountry = {name: countryName, hmdCode: hmdCode, element: this};
+            
             if (hmdCode && mortalityData[currentYear] && mortalityData[currentYear][hmdCode]) {
                 const value = mortalityData[currentYear][hmdCode];
                 
@@ -613,10 +627,36 @@
         }
 
         function handleMouseOut() {
+            hoveredCountry = null;
             tooltip.style("display", "none");
             d3.select(this).attr("stroke", "#fff").attr("stroke-width", 1);
         }
 
+        function updateTooltip() {
+            if (!hoveredCountry) return;
+            
+            const countryName = hoveredCountry.name;
+            const hmdCode = hoveredCountry.hmdCode;
+            const config = datasetConfig[currentDataset];
+            
+            if (hmdCode && mortalityData[currentYear] && mortalityData[currentYear][hmdCode]) {
+                const value = mortalityData[currentYear][hmdCode];
+                
+                let displayValue;
+                if (value >= 1000000) {
+                    displayValue = (value / 1000000).toFixed(2) + " million";
+                } else if (value >= 1000) {
+                    displayValue = (value / 1000).toFixed(1) + " thousand";
+                } else {
+                    displayValue = value.toFixed(2);
+                }
+                
+                tooltip
+                    .html("<strong>" + countryName + "</strong><br>" + 
+                        config.label + ": " + displayValue + " " + config.unit + "<br>" +
+                        "Year: " + currentYear + "<br><em>Click to add to chart</em>");
+            }
+        }
         function handleClick(event, d) {
             const countryName = d.properties.name;
             const hmdCode = countryToHmd[countryName];
@@ -675,6 +715,43 @@
         d3.select("#reset-btn").on("click", function() {
             selectedCountries = [];
             updateChart();
+        });
+
+        d3.select("#play-btn").on("click", function() {
+            if (isPlaying) {
+                isPlaying = false;
+                clearInterval(playInterval);
+                d3.select("#play-btn").text("▶ Play");
+            } else {
+                isPlaying = true;
+                d3.select("#play-btn").text("⏸ Pause");
+                
+                const slider = document.getElementById("year-slider");
+                const minYear = +slider.min;
+                const maxYear = +slider.max;
+                
+                if (currentYear >= maxYear) {
+                    currentYear = minYear;
+                    slider.value = currentYear;
+                    d3.select("#year-display").text(currentYear);
+                    updateMap();
+                }
+                
+                playInterval = setInterval(function() {
+                    currentYear++;
+                    if (currentYear > maxYear) {
+                        currentYear = maxYear;
+                        isPlaying = false;
+                        clearInterval(playInterval);
+                        d3.select("#play-btn").text("▶ Play");
+                        return;
+                    }
+                    slider.value = currentYear;
+                    d3.select("#year-display").text(currentYear);
+                    updateMap();
+                    updateTooltip();
+                }, 200);
+            }
         });
     </script>
 </body>
