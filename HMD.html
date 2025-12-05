@@ -60,38 +60,46 @@
         }
         #main-container {
             display: flex;
-            gap: 10px;
+            gap: 15px;
             align-items: flex-start;
+            width: 100%;
         }
         #left-panel {
-            width: 900px;
-            flex-shrink: 0;
+            flex: 4;
+            min-width: 0;
         }
         #middle-panel {
-            width: 250px;
-            flex-shrink: 0;
+            flex: 1;
+            min-width: 180px;
+            max-width: 250px;
         }
         #right-panel {
-            width: 900px;
-            flex-shrink: 0;
+            flex: 4;
+            min-width: 0;
         }
         #map {
             background: #f0f8ff;
             border: 1px solid #ccc;
             width: 100%;
         }
+        #map svg {
+            width: 100%;
+            height: auto;
+        }
         #bar-chart {
             margin-top: 8px;
-            max-height: 650px;
+            max-height: 80vh;
             overflow-y: auto;
             border: 1px solid #eee;
-        }
-        #line-panel {
-            margin-top: 15px;
         }
         #chart {
             background: #fafafa;
             border: 1px solid #ccc;
+            width: 100%;
+        }
+        #chart svg {
+            width: 100%;
+            height: auto;
         }
         #zoom-controls {
             margin-bottom: 5px;
@@ -179,11 +187,13 @@
         <div id="chart" style="border: 1px solid #ccc;"></div>
     </div>
     <script>
-        const width = 900;
-        const height = 650;
-        const chartWidth = 900;
-        const chartHeight = 650;
-        const chartMargin = {top: 20, right: 150, bottom: 50, left: 70};
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
+        const width = Math.min(900, Math.floor((screenWidth - 300) * 0.45));
+        const height = Math.floor(width * 0.72);       
+        const chartWidth = width;
+        const chartHeight = height;
+        const chartMargin = {top: 20, right: Math.floor(width * 0.15), bottom: 50, left: 70};
 
         const hmdToCountry = {
             'AUS': 'Australia',
@@ -302,9 +312,9 @@
             .attr("width", chartWidth)
             .attr("height", chartHeight);
 
-        const barWidth = 180;
-        const barHeight = 600;
-        const barMargin = {top: 10, right: 35, bottom: 20, left: 120};
+        const barWidth = Math.min(220, Math.floor(screenWidth * 0.12));
+        const barHeight = height;
+        const barMargin = {top: 10, right: 35, bottom: 20, left: Math.floor(barWidth * 0.5)};
 
         const barSvg = d3.select("#bar-chart")
             .append("svg")
@@ -323,7 +333,7 @@
 
         let barFilter = "top10";
         const projection = d3.geoNaturalEarth1()
-            .scale(170)
+            .scale(width / 5.3)
             .translate([width / 2, height / 2]);
         
         const chartG = chartSvg.append("g")
@@ -744,7 +754,7 @@
             const config = datasetConfig[currentDataset];
             d3.select("#legend").html("");
             
-            const legendWidth = 200;
+            const legendWidth = Math.min(200, width * 0.4);
             const legendHeight = 20;
             
             const legendSvg = d3.select("#legend")
@@ -1110,6 +1120,14 @@
 
         d3.select("#zoom-reset").on("click", function() {
             svg.transition().call(zoom.transform, d3.zoomIdentity);
+        });
+
+        let resizeTimeout;
+        window.addEventListener('resize', function() {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(function() {
+                location.reload();
+            }, 500);
         });
     </script>
 </body>
