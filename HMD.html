@@ -39,6 +39,7 @@
     </div>
     
     <div id="map"></div>
+    <div id="legend"></div>
     <div id="tooltip"></div>
     <div id="chart"></div>
     
@@ -409,6 +410,7 @@
                     colorScale = d3.scaleSequential(config.colorScheme).domain(config.colorDomain);
                     updateMap();
                     updateChart();
+                    updateLegend();
                 });
             } else if (config.hasAge) {
                     d3.text(filename).then(function(text) {
@@ -423,6 +425,7 @@
                         colorScale = d3.scaleSequential(config.colorScheme).domain(config.colorDomain);
                         updateMap();
                         updateChart();
+                        updateLegend();
                     });
             } else {
                 d3.text(filename).then(function(text) {
@@ -452,6 +455,7 @@
                     colorScale = d3.scaleSequential(config.colorScheme).domain(config.colorDomain);
                     updateMap();
                     updateChart();
+                    updateLegend();
                 });
             }
 
@@ -526,6 +530,53 @@
                     }
                     return "#ccc";
                 });
+        }
+        function updateLegend() {
+            const config = datasetConfig[currentDataset];
+            d3.select("#legend").html("");
+            
+            const legendWidth = 300;
+            const legendHeight = 15;
+            
+            const legendSvg = d3.select("#legend")
+                .append("svg")
+                .attr("width", legendWidth + 80)
+                .attr("height", legendHeight + 30);
+            
+            const defs = legendSvg.append("defs");
+            const gradient = defs.append("linearGradient")
+                .attr("id", "legend-gradient");
+            
+            for (let i = 0; i <= 10; i++) {
+                const t = i / 10;
+                const value = config.colorDomain[0] + t * (config.colorDomain[1] - config.colorDomain[0]);
+                gradient.append("stop")
+                    .attr("offset", (t * 100) + "%")
+                    .attr("stop-color", colorScale(value));
+            }
+            
+            legendSvg.append("rect")
+                .attr("x", 40)
+                .attr("y", 5)
+                .attr("width", legendWidth)
+                .attr("height", legendHeight)
+                .style("fill", "url(#legend-gradient)");
+
+            const legendScale = d3.scaleLinear()
+                .domain(config.colorDomain)
+                .range([0, legendWidth]);
+            
+            const legendAxis = d3.axisBottom(legendScale)
+                .ticks(5)
+                .tickFormat(function(d) {
+                    if (d >= 1000000) return (d / 1000000).toFixed(0) + "M";
+                    if (d >= 1000) return (d / 1000).toFixed(0) + "K";
+                    return d;
+                });
+            
+            legendSvg.append("g")
+                .attr("transform", "translate(40, " + (5 + legendHeight) + ")")
+                .call(legendAxis);
         }
 
         function handleMouseOver(event, d) {
