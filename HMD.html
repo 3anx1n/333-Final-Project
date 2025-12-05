@@ -168,6 +168,19 @@
             .attr("width", width)
             .attr("height", height);
 
+        const mapG = svg.append("g");
+        const zoom = d3.zoom()
+            .scaleExtent([1, 8])
+            .on("zoom", function(event) {
+                mapG.attr("transform", event.transform);
+            });
+
+        svg.call(zoom);
+
+        d3.select("#left-panel").insert("div", "#map")
+            .attr("id", "zoom-controls")
+            .html('<button id="zoom-in">+</button> <button id="zoom-out">−</button> <button id="zoom-reset">Reset</button>');
+
         const chartSvg = d3.select("#chart")
             .append("svg")
             .attr("width", chartWidth)
@@ -298,7 +311,7 @@
                 .append("path")
                 .attr("class", "line")
                 .attr("fill", "none")
-                .attr("stroke-width", 2)
+                .attr("stroke-width", 1)
                 .merge(lines)
                 .attr("stroke", function(d) { 
                     const colorIndex = selectedCountries.indexOf(d.code);
@@ -407,7 +420,7 @@
             .then(function(world) {
                 const countries = topojson.feature(world, world.objects.countries);
                 
-            svg.selectAll("path")
+            mapG.selectAll("path")
                 .data(countries.features)
                 .enter()
                 .append("path")
@@ -569,7 +582,7 @@
         }
 
         function updateMap() {
-            svg.selectAll("path")
+            mapG.selectAll("path")
                 .attr("fill", function(d) {
                     const countryName = d.properties.name;
                     const hmdCode = countryToHmd[countryName];
@@ -675,7 +688,7 @@
                 .attr("height", barYScale.bandwidth())
                 .attr("fill", d => colorScale(d.value))
                 .attr("stroke", d => selectedCountries.includes(d.code) ? "#000" : "none")
-                .attr("stroke-width", 2)
+                .attr("stroke-width", 1)
                 .attr("cursor", "pointer")
                 .on("click", function(event, d) {
                     const index = selectedCountries.indexOf(d.code);
@@ -768,7 +781,7 @@
                         config.label + ": " + displayValue + " " + config.unit + "<br>" +
                         "Year: " + currentYear + "<br><em>Click to add to chart</em>");
                 
-                d3.select(this).attr("stroke", "#000").attr("stroke-width", 2);
+                d3.select(this).attr("stroke", "#000").attr("stroke-width", 1);
             }
         }
 
@@ -913,6 +926,18 @@
         d3.select("#bar-filter").on("change", function() {
             barFilter = this.value;
             updateBarChart();
+        });
+
+        d3.select("#zoom-in").on("click", function() {
+            svg.transition().call(zoom.scaleBy, 1.5);
+        });
+
+        d3.select("#zoom-out").on("click", function() {
+            svg.transition().call(zoom.scaleBy, 0.67);
+        });
+
+        d3.select("#zoom-reset").on("click", function() {
+            svg.transition().call(zoom.transform, d3.zoomIdentity);
         });
     </script>
 </body>
